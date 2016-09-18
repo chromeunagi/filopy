@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"fmt"
+	"io/ioutil"
 	"log"
 	"os"
 	"strings"
@@ -88,6 +89,14 @@ func executeDestroy() {
 
 func executeFiles() error {
 	// TODO
+	files, err := ioutil.ReadDir(".")
+	if err != nil {
+		return err
+	}
+
+	for _, f := range files {
+		fmt.Printf("%s %s\n", f.Name(), f.ModTime())
+	}
 	return nil
 }
 
@@ -107,6 +116,11 @@ func runCLI() {
 		input, err = reader.ReadString('\n')
 		if err != nil {
 			log.Fatalln(err)
+		}
+
+		// Skip if the input is empty.
+		if input == "\n" {
+			continue
 		}
 
 		tokens = strings.Fields(input)
@@ -139,7 +153,7 @@ func runCLI() {
 		case cmdExit.name:
 			executeExit()
 		case cmdFiles.name:
-			// TODO
+			executeFiles()
 		case cmdLock.name:
 			fmt.Println("execute lock")
 		case cmdUnlock.name:

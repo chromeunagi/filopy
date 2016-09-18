@@ -15,11 +15,19 @@ type Command struct {
 }
 
 var (
-	cmdLock   = Command{"lock", 1}
-	cmdUnlock = Command{"unlock", 1}
-	cmdExit   = Command{"exit", 0}
+	cmdDestroy = Command{"destroy", 0}
+	cmdExit    = Command{"exit", 0}
+	cmdFiles   = Command{"files", 0}
+	cmdInit    = Command{"init", 0}
+	cmdLock    = Command{"lock", 1}
+	cmdUnlock  = Command{"unlock", 1}
 
-	commands = []Command{cmdLock, cmdUnlock, cmdExit}
+	commands = []Command{cmdDestroy, cmdExit, cmdFiles, cmdInit, cmdLock, cmdUnlock}
+)
+
+const (
+	nodes        = 7
+	defaultPerms = 0777
 )
 
 // Output a help message to stdout.
@@ -40,6 +48,49 @@ func isValidCmd(name string) bool {
 	return false
 }
 
+// Check if filopy has been initialized.
+// TODO: implement the check. easy, just check if the .filopy file exists.
+func isInitialized() bool {
+	_, err := os.Stat(".filopy")
+	return err == nil
+}
+
+// TODO: make the user setup a passphrase.
+func executeInit() error {
+	// Create the .filopy directory.
+	if err := os.Mkdir(".filopy", defaultPerms); err != nil {
+		return err
+	}
+
+	// Create the nodes.
+	var name string
+	for i := 0; i < nodes; i++ {
+		name = fmt.Sprintf(".filopy/%d", i)
+		if err := os.Mkdir(name, defaultPerms); err != nil {
+			return err
+		}
+	}
+
+	// TODO: set up passphrase
+	// ...
+
+	return nil
+}
+
+func executeExit() {
+	os.Exit(0)
+}
+
+// TODO: get pass, 3 confirmations, etc.
+func executeDestroy() {
+	return
+}
+
+func executeFiles() error {
+	// TODO
+	return nil
+}
+
 // Run the CLI in a loop until the user exits.
 func runCLI() {
 	var input, cmd string
@@ -50,6 +101,8 @@ func runCLI() {
 	reader = bufio.NewReader(os.Stdin)
 
 	for {
+		fmt.Printf("> ")
+
 		// Read from stdin and tokenize the strings.
 		input, err = reader.ReadString('\n')
 		if err != nil {
@@ -64,19 +117,42 @@ func runCLI() {
 			continue
 		}
 
-		// Filter out invalid commands.
-		// TODO: make this more specific. check for arglength, etc
 		cmd = tokens[0]
-		if !isValidCmd(cmd) {
-			printHelp()
+		if !isInitialized() && cmd != "init" {
+			fmt.Println("Use the \"init\" command to initialize filopy.")
 			continue
 		}
 
-		fmt.Printf("cmd: %s, args: %s\n", cmd, tokens[1:])
-
+		switch cmd {
+		case cmdInit.name:
+			if err = executeInit(); err != nil {
+				fmt.Printf("Error: %s\n", err)
+			} else {
+				dir, err := os.Getwd()
+				if err != nil {
+					fmt.Printf("Error: %s\n", err)
+				}
+				fmt.Printf("Successfully initialized filopy to %s\n", dir)
+			}
+		case cmdDestroy.name:
+			executeDestroy()
+		case cmdExit.name:
+			executeExit()
+		case cmdFiles.name:
+			// TODO
+		case cmdLock.name:
+			fmt.Println("execute lock")
+		case cmdUnlock.name:
+			fmt.Println("execute unlock")
+		default:
+			printHelp()
+			continue
+		}
 	}
 }
 
 func main() {
+	// TODO: change working directory to the right location
+	// TODO: setup in /usr/var or something.
 	runCLI()
 }

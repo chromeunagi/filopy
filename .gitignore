@@ -4,3 +4,6 @@ filopy
 # Filopy folder and its contents
 .filopy
 .filopy/*
+
+# Test file
+book.txt

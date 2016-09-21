@@ -38,8 +38,29 @@ func printHelp() {
 	}
 }
 
-// Returns whether the given string represents the name of a
-// valid command.
+// Generate a UUID.
+func generateUUID() (string, error) {
+	var reader *bufio.Reader
+	var file *os.File
+	var buf []byte
+	var out string
+	var err error
+
+	file, err = os.Open("/dev/urandom")
+	if err != nil {
+		return "", err
+	}
+
+	buf = make([]byte, 16)
+	reader = bufio.NewReader(file)
+	reader.Read(buf)
+
+	out = fmt.Sprintf("%x-%x-%x-%x-%x", buf[0:4], buf[4:6], buf[6:8],
+		buf[8:10], buf[10:16],
+	)
+	return out, nil
+}
+
 func isValidCmd(name string) bool {
 	for _, c := range commands {
 		if name == c.name {
@@ -160,7 +181,6 @@ func runCLI() {
 			fmt.Println("execute unlock")
 		default:
 			printHelp()
-			continue
 		}
 	}
 }
@@ -168,5 +188,5 @@ func runCLI() {
 func main() {
 	// TODO: change working directory to the right location
 	// TODO: setup in /usr/var or something.
-	runCLI()
+	//runCLI()
 }

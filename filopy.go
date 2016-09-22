@@ -2,41 +2,73 @@ package main
 
 import (
 	"bufio"
+	"errors"
+	//"bytes"
+	//"encoding/base64"
+	//"encoding/gob"
 	"fmt"
-	"io/ioutil"
 	"log"
 	"os"
 	"strings"
 )
 
-// TODO: possibly add a help message for each cmd?
-type Command struct {
-	name string
-	argc int
-}
+/*
+TODO:
+cmds:
+	arglen check.
+
+users:
+	add users? maybe not. is this a singly-user application?
+
+Nodes:
+	-figure out a better for Nodes than just defaulting to 7.
+	-make node directories permissions only allow for write by
+	the user that initialized filopy.
+
+*/
+
+type (
+	Filopy struct {
+		TrackedFiles []*File
+		Nodes        []*Node
+	}
+
+	Command struct {
+		name string
+		argc int
+		help string
+	}
+)
 
 var (
-	cmdDestroy = Command{"destroy", 0}
-	cmdExit    = Command{"exit", 0}
-	cmdFiles   = Command{"files", 0}
-	cmdInit    = Command{"init", 0}
-	cmdLock    = Command{"lock", 1}
-	cmdUnlock  = Command{"unlock", 1}
+	cmdInit    = Command{"init", 0, "Initialize Filopy in this directory"}
+	cmdDestroy = Command{"destroy", 0, "Destroy this Filopy space"}
+	cmdAdd     = Command{"add", -1, "Begin tracking the given files"}
+	cmdRm      = Command{"rm", -1, "Stop tracking the given files"}
+	cmdFiles   = Command{"files", 0, "List the files tracked by Filopy"}
+	cmdExit    = Command{"exit", 0, "Exit the Filopy CLI"}
+	cmdLock    = Command{"lock", -1, "Lock the given files"}
+	cmdUnlock  = Command{"unlock", -1, "Unlock the given files"}
+	cmdHelp    = Command{"help", 1, "Show commands"}
 
-	commands = []Command{cmdDestroy, cmdExit, cmdFiles, cmdInit, cmdLock, cmdUnlock}
+	commands = []Command{
+		cmdInit, cmdDestroy, cmdAdd, cmdRm, cmdFiles, cmdExit, cmdLock,
+		cmdUnlock, cmdHelp,
+	}
+	preInitCommands = []Command{
+		cmdInit, cmdHelp, cmdExit,
+	}
+
+	errAlreadyInit = errors.New("Filopy has already been initialized.")
+	errNeedInit    = errors.New("Filopy hasn't been initialized.")
+	errUnsupported = errors.New("Unsupported command. Use \"help\" to" +
+		" view supported commands.")
 )
 
 const (
-	nodes        = 7
+	numNodes     = 7
 	defaultPerms = 0777
 )
-
-// Output a help message to stdout.
-func printHelp() {
-	for _, c := range commands {
-		fmt.Printf("Command: %s, Args: %d\n", c.name, c.argc)
-	}
-}
 
 // Generate a UUID.
 func generateUUID() (string, error) {
@@ -61,6 +93,7 @@ func generateUUID() (string, error) {
 	return out, nil
 }
 
+// Return whether the given command is supported.
 func isValidCmd(name string) bool {
 	for _, c := range commands {
 		if name == c.name {
@@ -70,117 +103,179 @@ func isValidCmd(name string) bool {
 	return false
 }
 
-// Check if filopy has been initialized.
-// TODO: implement the check. easy, just check if the .filopy file exists.
-func isInitialized() bool {
-	_, err := os.Stat(".filopy")
-	return err == nil
-}
-
-// TODO: make the user setup a passphrase.
-func executeInit() error {
-	// Create the .filopy directory.
+// Initialize Filopy in this directory.
+// TODO make the user set up a passphrase
+func initialize() (*Filopy, error) {
 	if err := os.Mkdir(".filopy", defaultPerms); err != nil {
-		return err
+		return nil, err
 	}
 
-	// Create the nodes.
+	var filopy *Filopy
+	filopy = &Filopy{
+		TrackedFiles: make([]*File, 0),
+		Nodes:        make([]*Node, 0),
+	}
+
+	// Create the Nodes.
 	var name string
-	for i := 0; i < nodes; i++ {
+	for i := 0; i < numNodes; i++ {
 		name = fmt.Sprintf(".filopy/%d", i)
 		if err := os.Mkdir(name, defaultPerms); err != nil {
-			return err
+			return nil, err
 		}
 	}
 
-	// TODO: set up passphrase
-	// ...
+	return filopy, nil
+}
 
+// Begin tracking the given files.
+func (f *Filopy) add() error {
+	fmt.Println("running add")
 	return nil
 }
 
-func executeExit() {
+// Stop tracking the given files.
+func (f *Filopy) rm() error {
+	return nil
+}
+
+// TODO
+func (f *Filopy) destroy() error {
+	return nil
+}
+
+// Output a help message to stdout.
+// TODO fix the spacing here
+func (f *Filopy) help() {
+	var name, help string
+	var argc int
+
+	fmt.Printf("    Command  Args  Help\n")
+	for _, c := range commands {
+		name = c.name
+		argc = c.argc
+		help = c.help
+		if len(name) > 8 {
+			name = name[:8]
+		}
+
+		fmt.Printf("    %s  %d  %s\n", name, argc, help)
+	}
+}
+
+// Lock the given files
+func (f *Filopy) lock() error {
+	return nil
+}
+
+// Unlock the given files
+func (f *Filopy) unlock() error {
+	return nil
+}
+
+// Leave the Filopy CLI.
+func (f *Filopy) exit() {
 	os.Exit(0)
 }
 
-// TODO: get pass, 3 confirmations, etc.
-func executeDestroy() {
-	return
+// Output the files tracked by Filopy.
+// TODO make the formatting thing more generic.
+func (f *Filopy) files() error {
+	var name string
+	var locked bool
+	for _, file := range f.TrackedFiles {
+		name = file.AbsolutePath
+		locked = file.Locked
+		if len(file.AbsolutePath) > 15 {
+			name = file.AbsolutePath[:15]
+		}
+		fmt.Printf("File: %s  Locked: %t\n", name, locked)
+	}
+	return nil
 }
 
-func executeFiles() error {
-	// TODO
-	files, err := ioutil.ReadDir(".")
-	if err != nil {
-		return err
+// Returns whether the input command is allowed to run before initializing
+// filopy.
+func inPreInit(cmd string) bool {
+	for _, c := range preInitCommands {
+		if c.name == cmd {
+			return true
+		}
 	}
+	return false
+}
 
-	for _, f := range files {
-		fmt.Printf("%s %s\n", f.Name(), f.ModTime())
-	}
+func serialize(f *Filopy) error {
+	return nil
+}
+
+func deserialize() *Filopy {
 	return nil
 }
 
 // Run the CLI in a loop until the user exits.
-func runCLI() {
+func run() {
+	var filopy *Filopy
+	var reader *bufio.Reader
 	var input, cmd string
 	var tokens []string
 	var err error
-	var reader *bufio.Reader
 
+	filopy = deserialize()
 	reader = bufio.NewReader(os.Stdin)
 
 	for {
 		fmt.Printf("> ")
-
-		// Read from stdin and tokenize the strings.
 		input, err = reader.ReadString('\n')
 		if err != nil {
 			log.Fatalln(err)
 		}
 
-		// Skip if the input is empty.
 		if input == "\n" {
 			continue
 		}
 
 		tokens = strings.Fields(input)
+		cmd = tokens[0]
 
-		// Filter out empty input.
-		if len(tokens) < 1 {
-			printHelp()
+		if !isValidCmd(cmd) {
+			fmt.Println(errUnsupported)
 			continue
 		}
 
-		cmd = tokens[0]
-		if !isInitialized() && cmd != "init" {
-			fmt.Println("Use the \"init\" command to initialize filopy.")
-			continue
+		if filopy == nil {
+			if !inPreInit(cmd) {
+				fmt.Println(errNeedInit)
+				continue
+			}
 		}
 
 		switch cmd {
 		case cmdInit.name:
-			if err = executeInit(); err != nil {
-				fmt.Printf("Error: %s\n", err)
-			} else {
-				dir, err := os.Getwd()
-				if err != nil {
-					fmt.Printf("Error: %s\n", err)
-				}
-				fmt.Printf("Successfully initialized filopy to %s\n", dir)
+			filopy, err = initialize()
+			if err != nil {
+				fmt.Println(errAlreadyInit)
 			}
 		case cmdDestroy.name:
-			executeDestroy()
+			filopy.destroy()
+		case cmdAdd.name:
+			filopy.add()
+		case cmdRm.name:
+			filopy.rm()
 		case cmdExit.name:
-			executeExit()
+			filopy.exit()
 		case cmdFiles.name:
-			executeFiles()
+			filopy.files()
 		case cmdLock.name:
-			fmt.Println("execute lock")
+			filopy.lock()
 		case cmdUnlock.name:
-			fmt.Println("execute unlock")
-		default:
-			printHelp()
+			filopy.unlock()
+		case cmdHelp.name:
+			filopy.help()
+		}
+
+		if err = serialize(filopy); err != nil {
+			log.Fatalln(err)
 		}
 	}
 }
@@ -188,5 +283,5 @@ func runCLI() {
 func main() {
 	// TODO: change working directory to the right location
 	// TODO: setup in /usr/var or something.
-	//runCLI()
+	run()
 }

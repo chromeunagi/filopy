@@ -2,31 +2,41 @@ package main
 
 import (
 	"bufio"
-	"fmt"
 	"os"
 )
+
+/*
+	TODO: optimization. for blobify, we can skip the intermediate "chunk"
+	  step. we can also parallelize the blobify method, maybe. unless
+	  a blockchain encryption scheme ends up being used. TBD.
+*/
 
 const (
 	chunkSize = 2048
 )
 
-type File struct {
-	absolutePath string
-	blobUUIDs    []string
-	blobVector   []string
-}
+type (
+	File struct {
+		Locked       bool
+		AbsolutePath string
+		BlobVector   []string
+	}
+)
 
-func (f *File) lock() error {
+// Break the given file down into blobs.
+func (f *File) blobify() ([]*Blob, error) {
 	var reader *bufio.Reader
 	var file *os.File
+	var blobs []*Blob
+	var b *Blob
 	var chunks [][]byte
 	var buf []byte
 	var err error
 	var n int
 
-	file, err = os.Open(f.absolutePath)
+	file, err = os.Open(f.AbsolutePath)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	defer file.Close()
 
@@ -39,11 +49,19 @@ func (f *File) lock() error {
 		if err != nil {
 			break
 		}
-
 		chunks = append(chunks, buf[0:n])
 	}
 
-	return nil
+	blobs = make([]*Blob, 0)
+	for _, c := range chunks {
+		b, err = NewBlob(c)
+		if err != nil {
+			return nil, err
+		}
+		blobs = append(blobs, b)
+	}
+
+	return blobs, nil
 }
 
 func (f *File) unlock() error {
@@ -52,18 +70,4 @@ func (f *File) unlock() error {
 
 func (f *File) nextBlob() string {
 	return ""
-}
-
-func main() {
-	p := "books.txt"
-
-	f := &File{
-		absolutePath: p,
-	}
-
-	err := f.lock()
-	if err != nil {
-		fmt.Println(err)
-	}
-
 }

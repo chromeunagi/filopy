@@ -2,8 +2,8 @@ package main
 
 import (
 	"bufio"
+	"bytes"
 	"errors"
-	//"bytes"
 	//"encoding/base64"
 	//"encoding/gob"
 	"fmt"
@@ -29,8 +29,8 @@ Nodes:
 
 type (
 	Filopy struct {
-		TrackedFiles []*File
-		Nodes        []*Node
+		TrackedFiles []File
+		Nodes        []Node
 	}
 
 	Command struct {
@@ -112,8 +112,8 @@ func initialize() (*Filopy, error) {
 
 	var filopy *Filopy
 	filopy = &Filopy{
-		TrackedFiles: make([]*File, 0),
-		Nodes:        make([]*Node, 0),
+		TrackedFiles: make([]File, 0),
+		Nodes:        make([]Node, 0),
 	}
 
 	// Create the Nodes.
@@ -205,7 +205,21 @@ func inPreInit(cmd string) bool {
 	return false
 }
 
+// TODO: improve the serialization
 func serialize(f *Filopy) error {
+	buf := new(bytes.Buffer)
+	lengths := fmt.Sprintf("%s%s", len(f.TrackedFiles), len(f.Nodes))
+	if _, err := buf.WriteString(lengths); err != nil {
+		return err
+	}
+
+	for _, f := range f.TrackedFiles {
+		buf.WriteString(f.String() + "$")
+	}
+
+	// Write to file
+	// TODO
+
 	return nil
 }
 

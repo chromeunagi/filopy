@@ -2,6 +2,8 @@ package main
 
 import (
 	"bufio"
+	"bytes"
+	"fmt"
 	"os"
 )
 
@@ -62,6 +64,15 @@ func (f *File) blobify() ([]*Blob, error) {
 	}
 
 	return blobs, nil
+}
+
+func (f *File) String() string {
+	buf := new(bytes.Buffer)
+	buf.WriteString(fmt.Sprintf("%t%s", f.Locked, f.AbsolutePath))
+	for _, id := range f.BlobVector {
+		buf.WriteString(id)
+	}
+	return buf.String()
 }
 
 func (f *File) unlock() error {

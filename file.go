@@ -75,6 +75,10 @@ func (f *File) String() string {
 	return buf.String()
 }
 
+func (f *File) lock() error {
+	return nil
+}
+
 func (f *File) unlock() error {
 	return nil
 }

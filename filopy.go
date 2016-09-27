@@ -25,6 +25,10 @@ Nodes:
 	-make node directories permissions only allow for write by
 	the user that initialized filopy.
 
+Filopy
+	- replace trackedfiles slice with map, as to make checks
+	  faster
+
 */
 
 type (
@@ -163,14 +167,61 @@ func (f *Filopy) help() {
 	}
 }
 
-// Lock the given files
-func (f *Filopy) lock() error {
-	return nil
+// Given a variable amount of input files, separate the two into two
+// groups: tracked files and untracked files. Return the filtered result.
+func (f *Filopy) gatherFiles(filePaths ...string) ([]File, []string) {
+	tracked := make([]File, 0)
+	untracked := make([]string, 0)
+
+	for _, fp := range filePaths {
+		file := f.findFile(fp)
+		if file != nil {
+			file.lock()
+		} else {
+			untracked = append(untracked, fp)
+		}
+	}
+
+	return tracked, untracked
+}
+
+// Lock the given files. If any of the given files isn't found, state
+// so in the returned error.
+func (f *Filopy) lock(filePaths ...string) error {
+	files, untracked := f.gatherFiles(filePaths...)
+	for _, file := range files {
+		file.lock()
+	}
+
+	if len(untracked) == 0 {
+		return nil
+	}
+
+	s := "Unable to find the following files: "
+	for _, uf := range untracked {
+		s += uf + " "
+	}
+
+	return errors.New(s)
 }
 
 // Unlock the given files
-func (f *Filopy) unlock() error {
-	return nil
+func (f *Filopy) unlock(filePaths ...string) error {
+	files, untracked := f.gatherFiles(filePaths...)
+	for _, file := range files {
+		file.unlock()
+	}
+
+	if len(untracked) == 0 {
+		return nil
+	}
+
+	s := "Unable to find the following files: "
+	for _, uf := range untracked {
+		s += uf + " "
+	}
+
+	return errors.New(s)
 }
 
 // Leave the Filopy CLI.
@@ -190,6 +241,21 @@ func (f *Filopy) files() error {
 			name = file.AbsolutePath[:15]
 		}
 		fmt.Printf("File: %s  Locked: %t\n", name, locked)
+	}
+	return nil
+}
+
+// Returns whether the given file is tracked by Filopy.
+func (f *Filopy) isFileTracked(filePath string) bool {
+	return f.findFile(filePath) != nil
+}
+
+// Return the file corresponding to the given path.
+func (f *Filopy) findFile(filePath string) *File {
+	for _, f := range f.TrackedFiles {
+		if filePath == f.AbsolutePath {
+			return &f
+		}
 	}
 	return nil
 }
